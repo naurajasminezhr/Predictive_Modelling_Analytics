@@ -1,0 +1,174 @@
+---
+title: "Challenge ARIMA_5026211005 (2)"
+author: "Naura Jasmine Azzahra"
+output: html_document
+date: "2023-11-27"
+---
+
+## Deskripsi Tugas
+
+Lakukan analitika deskriptif (pola data) dan prediktif (ARIMA) pada dataset terlampir: dataset_arima.csv (pilih salah satu sektor dari 7 sektor yang ada untuk dianalisa)
+
+Tentukan Model ARIMA terbaik yang dapat digunakan untuk prediksi
+
+# Deskripsi Data
+Dataset ini mencakup data penjualan salah satu sektor US Retail Sales dari tahun 1992 hingga 2019. 
+ Tujuan analisis ini adalah untuk mengidentifikasi pola dalam penjualan dan memprediksi tren masa depan menggunakan model ARIMA dan model lainnya.
+
+```{r}
+head(dataset_arima) # Looks at how our dataset is
+```
+```{r}
+tail(dataset_arima)
+```
+
+```{r}
+glimpse(dataset_arima)
+```
+
+```{r}
+dim(dataset_arima) # Gives the total rows and columns present in the dataset
+class(dataset_arima) #Data Exploration - class
+str(dataset_arima) #Data Exploration - class
+summary(dataset_arima)
+```
+
+## Analisis Deskriptif
+
+
+##Melihat Tren Data
+#Tren Penjualan Sektor Makanan dan Minuman
+```{r}
+dataset_arima$Month <- as.Date(dataset_arima$Month)
+ggplot(dataset_arima, aes(x = Month, y = FoodAndBeverage)) +
+    geom_line() +
+    labs(title = "Tren Penjualan Sektor Makanan dan Minuman", x = "Tahun", y = "Penjualan")
+
+```
+
+#Mengubah tren FnB ke Time Series
+Karena seriesnya bulanan, maka menggunakan 12 sebagai frekuensi
+
+```{r}
+library(tseries)
+data_ts <- ts(dataset_arima$FoodAndBeverage, start=c(1992), frequency = 12)
+data_ts
+```
+```{r}
+autoplot(data_ts)
+```
+
+#Mengimplementasikan Test ADF
+
+```{r}
+adf.test(data_ts, k=12)
+```
+karena p-value = 0.9631 lebih besar dari level significance, maka series fnb ini belum stasioner
+
+#Melakukan ADF Test di Differensiasi Pertama
+```{r}
+data_ts_d1 <- diff(data_ts, differences = 1)
+adf.test(data_ts_d1, k=12)
+```
+dari p-value menunjukkan bahwa 0.01 < level significance (0.05)
+
+#Plot Stationary Series (d = 1)
+
+```{r}
+autoplot(data_ts_d1)
+```
+
+#Menentukan p (AR atau Lag) dengan plot PACF
+
+```{r}
+library(forecast)
+Pacf(data_ts_d1)
+```
+Dari plot Partial Autocorrelation Function (PACF) di atas, dapat dilihat bahwa ada dua titik di luar batas signifikansi, yaitu pada lag 1 dan lag 2. Hal ini menunjukkan bahwa terdapat hubungan autoregressive (AR) antara data pada lag 1 dan lag 2. Oleh karena itu, p atau orde AR-nya adalah 2.
+
+Lag atau nilai perbedaan waktunya adalah 1 dan 2. Hal ini karena titik-titik di luar batas signifikansi berada pada lag 1 dan lag 2.
+
+#Menentukan q (MA atau Moving Average) dengan ACF Plot
+
+```{r}
+Acf(data_ts_d1)
+```
+
+Dari plot Autocorrelation Function (ACF) diatas, dapat dilihat bahwa ada satu titik di luar batas signifikansi, yaitu pada lag 1. Hal ini menunjukkan bahwa terdapat hubungan moving average (MA) antara data pada lag 1. Oleh karena itu, q atau orde MA-nya adalah 1.
+
+Lag atau nilai perbedaan waktunya adalah 1. Hal ini karena titik di luar batas signifikansi berada pada lag 1.
+
+Secara umum, ACF digunakan untuk menentukan orde MA dari model ARIMA. Jika terdapat titik di luar batas signifikansi, maka orde MA adalah jumlah titik tersebut.
+
+Oleh karena itu, p = 2 dan q = 1.
+
+Berdasarkan hasil tersebut, model ARIMA yang sesuai untuk data tersebut adalah ARIMA(2,0,1)
+
+#Mengecek dan menentukan model ARIMA yang sesuai
+Fungsi auto.arima() memiliki beberapa argumen, di antaranya:
+
+data: Data yang akan digunakan untuk membangun model ARIMA.
+ic: Metode untuk memilih model ARIMA. Metode yang tersedia adalah aic, bic, dan hqic.
+trace: Apakah akan menampilkan informasi selama proses iterasi pencarian model ARIMA.
+```{r}
+auto <- auto.arima(data_ts_d1,ic="aic", trace=TRUE)
+```
+The line Best model: ARIMA(2,0,2)(0,1,2)[12] with drift indicates that the ARIMA(2,0,2)(0,1,2)[12] with drift model has the lowest AIC value, and therefore is the best model according to the AIC criterion.
+
+Here's a breakdown of the ARIMA(2,0,2)(0,1,2)[12] with drift model:
+
+ARIMA(2,0,2) refers to the autoregressive (AR) part of the model. The order of the AR part is 2, which means that the current value of the time series depends on the two previous values.
+
+(0,1,2) refers to the moving average (MA) part of the model. The order of the MA part is 2, which means that the current value of the time series depends on the two previous forecast errors.
+
+[12] refers to the seasonal order of the model. This indicates that the model accounts for seasonality with a period of 12.
+
+with drift indicates that the model includes a drift term, which accounts for a linear trend in the data.
+
+#Fitting ARIMA
+untuk membangun model ARIMA(2,0,2) dengan musiman (0,1,2) dengan periode 12, syntax-nya adalah sebagai berikut:
+```{r}
+#model <- Arima(data, order = c(p, d, q), seasonal = list(order = c(P, D, Q), period = S))
+#Argumen data adalah data yang akan digunakan untuk membangun model ARIMA. Argumen order adalah vektor yang berisi nilai orde AR, orde differencing, dan orde MA dari model ARIMA. Argumen seasonal adalah daftar yang berisi vektor yang berisi nilai orde AR, orde differencing, dan orde MA dari model musiman.
+
+#tsmodel <- Arima(y = data_ts, order = c(2,0,2), seasonal = list(order = c(0,1,2), period = 12))
+tsmodel <- Arima(y = data_ts, order = c(2,0,2))
+tsmodel
+summary(tsmodel)
+```
+
+The output of the `Arima()` function consists of two parts: the model summary and the forecast summary.
+
+**Model summary**
+
+The model summary provides information about the fitted ARIMA model. The first part of the summary, `ARIMA(2,0,2)(1,1,1)[12] with drift`, describes the order of the autoregressive (AR), integrated (I), and moving average (MA) components of the model, as well as the periodicity of the seasonality. In this case, the model has an AR order of 2, an I order of 0, and an MA order of 2. The seasonality has an AR order of 1, an I order of 1, and an MA order of 1. The periodicity of the seasonality is 12, which means that the model accounts for seasonal patterns that occur every 12 months. The phrase `with drift` indicates that the model includes a constant term to account for any linear trend in the data.
+
+The second part of the model summary, `Fitting models using approximations to speed things up...`, indicates that the `Arima()` function used approximations to fit the model. This is because the full maximum likelihood estimation (MLE) procedure can be computationally expensive for large datasets. The approximations can sometimes lead to slightly less accurate results, but they are much faster to compute.
+
+The third part of the model summary lists the AICc values for a number of different ARIMA models that were considered. The AICc is a measure of model fit, and the model with the smallest AICc value is considered to be the best-fitting model. In this case, the ARIMA(2,0,2)(1,1,1)[12] with drift model has the smallest AICc value, so it is the best-fitting model.
+
+**Forecast summary**
+
+The forecast summary provides information about the fitted forecasts. The first part of the summary, `Augmented Dickey-Fuller Test`, shows the results of the augmented Dickey-Fuller (ADF) test. The ADF test is used to determine whether a time series is stationary. In this case, the p-value of the ADF test is 0.9631, which is greater than the usual significance level of 0.05. This means that we cannot reject the null hypothesis that the time series is stationary.
+
+The second part of the forecast summary, `Warning: p-value smaller than printed p-value`, indicates that the p-value of the ADF test is smaller than the value that was printed. This is because the ADF test was performed on the differenced time series, which is the time series that was obtained by differencing the original time series once. The p-value for the differenced time series is 0.01, which is less than the usual significance level of 0.05. This means that we can reject the null hypothesis that the differenced time series is stationary.
+
+The third part of the forecast summary lists the AICc values for a number of different forecast models that were considered. The forecast model with the smallest AICc value is considered to be the best-fitting forecast model. In this case, the ARIMA(2,0,2)(1,1,1)[12] with drift model has the smallest AICc value, so it is the best-fitting forecast model.
+
+
+
+#Model Summary
+```{r}
+print(tsmodel)
+```
+
+#Melakukan forecasting 12 periods ahead
+
+```{r}
+forecast(tsmodel,h=12)
+```
+#Plot Series dengan Forecast
+```{r}
+autoplot(forecast(tsmodel,h=12))
+```
+
